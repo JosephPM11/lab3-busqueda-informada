@@ -120,3 +120,120 @@ def verificar_heuristica(G, H, meta):
             if H[n] > costo + H[m]:
                 inconsistentes.append((n, m))
     return no_admisibles, inconsistentes
+
+
+# ═════════════════════════════════════════════════════════════════════
+# PASO 4. Instrumentación (clase de la plantilla)
+# ═════════════════════════════════════════════════════════════════════
+
+class Metricas:
+    """Contadores con las definiciones de la Tabla 7 de la guía."""
+
+    def __init__(self, nombre):
+        self.nombre = nombre
+        self.expandidos = 0
+        self.generados = 0
+        self.frontera_max = 0
+
+    def observar_frontera(self, tamano):
+        """Llamar justo antes de cada extracción de la frontera."""
+        self.frontera_max = max(self.frontera_max, tamano)
+
+    def expandir(self):
+        """Llamar al procesar un nodo (no para entradas obsoletas)."""
+        self.expandidos += 1
+
+    def generar(self):
+        """Llamar cada vez que se inserta un nodo en la frontera."""
+        self.generados += 1
+
+    def fila(self, costo):
+        """Fila para la tabla comparativa."""
+        return {'algoritmo': self.nombre, 'costo': costo, 'expandidos': self.expandidos,
+                'generados': self.generados, 'frontera_max': self.frontera_max}
+
+
+def reconstruir(padre, meta):
+    """Reconstruye el camino recorriendo el diccionario de padres desde la meta."""
+    camino = []
+    n = meta
+    while n is not None:
+        camino.append(n)
+        n = padre[n]
+    return camino[::-1]
+
+
+def costo_camino(G, camino):
+    """Suma de los costos de las aristas del camino."""
+    total = 0
+    for a, b in zip(camino, camino[1:]):
+        total += dict(G[a])[b]
+    return total
+
+
+def imprimir_tabla(resultados):
+    """Imprime la tabla comparativa de algoritmos."""
+    print(f"{'Algoritmo':<18}{'Costo (km)':>12}{'Expandidos':>12}{'Generados':>11}{'Frontera máx.':>15}")
+    print('-' * 68)
+    for r in resultados:
+        costo = f"{r['costo']:,}".replace(',', ' ') if r['costo'] is not None else '—'
+        print(f"{r['algoritmo']:<18}{costo:>12}{r['expandidos']:>12}{r['generados']:>11}{r['frontera_max']:>15}")
+
+
+# ═════════════════════════════════════════════════════════════════════
+# PASO 5. Búsqueda no informada: BFS y DFS
+# ═════════════════════════════════════════════════════════════════════
+
+def bfs(G, inicio, meta):
+    """TODO 5.1 — BFS con cola (deque). Los nodos se marcan como visitados al
+    generarlos; la prueba de meta se hace al extraer."""
+    m = Metricas('BFS')
+    padre = {inicio: None}
+    frontera = deque([inicio])
+    visitados = {inicio}
+    m.generar()
+    while frontera:
+        m.observar_frontera(len(frontera))
+        n = frontera.popleft()
+        m.expandir()
+        if n == meta:
+            camino = reconstruir(padre, meta)
+            return camino, costo_camino(G, camino), m
+        for vecino, _costo in G[n]:
+            if vecino not in visitados:
+                visitados.add(vecino)
+                padre[vecino] = n
+                m.generar()
+                frontera.append(vecino)
+    return None, None, m
+
+
+def dfs(G, inicio, meta):
+    """TODO 5.2 — DFS con pila explícita (lista), sin recursión. Los vecinos se
+    apilan en orden alfabético inverso para desapilarse en orden alfabético.
+    - Un vecino puede apilarse otra vez aunque ya esté en la pila: la copia más
+      reciente es la que se desapila primero (comportamiento real de una pila),
+      por eso se actualiza su padre.
+    - Al desapilar un nodo ya expandido (copia obsoleta) se descarta sin contarlo."""
+    m = Metricas('DFS')
+    padre = {inicio: None}
+    frontera = [inicio]
+    cerrados = set()
+    m.generar()
+    while frontera:
+        m.observar_frontera(len(frontera))
+        n = frontera.pop()
+        if n in cerrados:                  # copia obsoleta: no es expansión
+            continue
+        m.expandir()
+        if n == meta:
+            camino = reconstruir(padre, meta)
+            return camino, costo_camino(G, camino), m
+        cerrados.add(n)
+        for vecino, _costo in reversed(G[n]):
+            if vecino in cerrados:
+                continue
+            padre[vecino] = n
+            m.generar()
+            frontera.append(vecino)
+    return None, None, m
