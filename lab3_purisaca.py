@@ -237,3 +237,125 @@ def dfs(G, inicio, meta):
             m.generar()
             frontera.append(vecino)
     return None, None, m
+
+
+# ═════════════════════════════════════════════════════════════════════
+# PASO 7. Greedy Best-First Search: f(n) = h(n)
+# ═════════════════════════════════════════════════════════════════════
+
+def greedy_best_first(G, inicio, meta, h):
+    """TODO 7.1 — Greedy Best-First Search (esqueleto de la guía)."""
+    m = Metricas('Greedy')
+    padre = {inicio: None}
+    frontera = [(h[inicio], 0, inicio)]    # (prioridad, desempate, ciudad)
+    en_frontera = {inicio}
+    cerrados = set()
+    orden = 0
+    m.generar()                            # el nodo inicial cuenta como generado
+
+    while frontera:
+        m.observar_frontera(len(frontera))
+        _, _, n = heapq.heappop(frontera)
+        en_frontera.discard(n)
+        m.expandir()
+        if n == meta:
+            camino = reconstruir(padre, meta)
+            return camino, costo_camino(G, camino), m
+        cerrados.add(n)
+        for vecino, _costo in G[n]:
+            if vecino in cerrados or vecino in en_frontera:
+                continue
+            padre[vecino] = n
+            orden += 1
+            en_frontera.add(vecino)
+            m.generar()
+            heapq.heappush(frontera, (h[vecino], orden, vecino))
+    return None, None, m
+
+
+# ═════════════════════════════════════════════════════════════════════
+# PASO 8. A*: f(n) = g(n) + w·h(n)
+# ═════════════════════════════════════════════════════════════════════
+
+def a_estrella(G, inicio, meta, h, w=1.0, nombre='A*', traza=False):
+    """TODO 8.1 — A* (w = 1) o A* ponderado (w > 1).
+    1) La prueba de meta se hace al EXTRAER el nodo.
+    2) Las entradas obsoletas (estado ya en cerrados) se descartan y no cuentan.
+    3) g[m] se actualiza solo si el nuevo camino es más barato.
+    4) El camino se reconstruye con el diccionario de padres."""
+    m = Metricas(nombre)
+    g = {inicio: 0}
+    padre = {inicio: None}
+    orden = 0
+    frontera = [(w * h[inicio], orden, inicio)]   # (f, desempate, ciudad)
+    cerrados = set()
+    m.generar()
+
+    while frontera:
+        if traza:
+            print('  frontera:', [(c, round(f, 1)) for f, _, c in sorted(frontera)])
+        m.observar_frontera(len(frontera))
+        f, _, n = heapq.heappop(frontera)
+        if n in cerrados:                  # entrada obsoleta: no es expansión
+            continue
+        m.expandir()
+        if traza:
+            print(f'  expande {n:<13s} g={g[n]:<5} h={h[n]:<4} f={f:.1f}')
+        if n == meta:
+            camino = reconstruir(padre, meta)
+            return camino, g[meta], m
+        cerrados.add(n)
+        for vecino, costo in G[n]:
+            if vecino in cerrados:
+                continue
+            nuevo_g = g[n] + costo
+            if nuevo_g < g.get(vecino, float('inf')):
+                g[vecino] = nuevo_g
+                padre[vecino] = n
+                orden += 1
+                m.generar()
+                heapq.heappush(frontera, (nuevo_g + w * h[vecino], orden, vecino))
+    return None, None, m
+
+
+# ═════════════════════════════════════════════════════════════════════
+# PASO 6. Costo uniforme = A* con h(n) = 0 (Dijkstra)
+# ═════════════════════════════════════════════════════════════════════
+
+def costo_uniforme(G, inicio, meta):
+    """Búsqueda de costo uniforme: A* con la heurística nula construida a partir
+    de las claves del grafo recibido (funciona con cualquier grafo)."""
+    h0 = {ciudad: 0 for ciudad in G}
+    return a_estrella(G, inicio, meta, h0, nombre='Costo uniforme')
+
+
+# ═════════════════════════════════════════════════════════════════════
+# Bloque principal (Paso 9 y Actividad propuesta)
+# ═════════════════════════════════════════════════════════════════════
+
+if __name__ == '__main__':
+    filas = leer_aristas('datos/rutas_peru_sur.csv')
+    H = leer_heuristica('datos/heuristica_lima.csv')
+    aristas = limpiar(filas)
+    G = construir_grafo(aristas)
+
+    print('=== Cusco -> Lima ===')
+    resultados = []
+    for camino, costo, m in [bfs(G, 'Cusco', 'Lima'), dfs(G, 'Cusco', 'Lima'),
+                             costo_uniforme(G, 'Cusco', 'Lima'),
+                             greedy_best_first(G, 'Cusco', 'Lima', H),
+                             a_estrella(G, 'Cusco', 'Lima', H)]:
+        resultados.append(m.fila(costo))
+    imprimir_tabla(resultados)
+
+    print('\n=== Cusco -> Trujillo (actividad propuesta) ===')
+    aristas_norte = limpiar(leer_aristas('datos/rutas_peru_norte.csv'))
+    G2 = construir_grafo(aristas + aristas_norte)
+    HT = leer_heuristica('datos/heuristica_trujillo.csv')
+    resultados2 = []
+    for camino, costo, m in [bfs(G2, 'Cusco', 'Trujillo'), dfs(G2, 'Cusco', 'Trujillo'),
+                             costo_uniforme(G2, 'Cusco', 'Trujillo'),
+                             greedy_best_first(G2, 'Cusco', 'Trujillo', HT),
+                             a_estrella(G2, 'Cusco', 'Trujillo', HT)]:
+        resultados2.append(m.fila(costo))
+    imprimir_tabla(resultados2)
