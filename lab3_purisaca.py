@@ -82,3 +82,41 @@ def construir_grafo(aristas):
     for ciudad in G:
         G[ciudad].sort()
     return G
+
+
+# ═════════════════════════════════════════════════════════════════════
+# PASO 3. Verificación de la heurística
+# ═════════════════════════════════════════════════════════════════════
+
+def costos_optimos_a(G, meta):
+    """h*(n): costo óptimo de cada ciudad hasta la meta (Dijkstra desde la meta;
+    el grafo es no dirigido, así que equivale a Dijkstra hacia atrás)."""
+    dist = {meta: 0}
+    heap = [(0, meta)]
+    cerrados = set()
+    while heap:
+        d, n = heapq.heappop(heap)
+        if n in cerrados:
+            continue
+        cerrados.add(n)
+        for vecino, costo in G[n]:
+            nd = d + costo
+            if nd < dist.get(vecino, float('inf')):
+                dist[vecino] = nd
+                heapq.heappush(heap, (nd, vecino))
+    return dist
+
+
+def verificar_heuristica(G, H, meta):
+    """TODO 3.1 — Devuelve (no_admisibles, inconsistentes):
+    - no_admisibles: ciudades con h(n) > h*(n)
+    - inconsistentes: pares (n, m) con h(n) > c(n, m) + h(m), revisando cada
+      arista en ambos sentidos."""
+    h_estrella = costos_optimos_a(G, meta)
+    no_admisibles = [n for n in sorted(G) if H[n] > h_estrella[n]]
+    inconsistentes = []
+    for n in sorted(G):
+        for m, costo in G[n]:
+            if H[n] > costo + H[m]:
+                inconsistentes.append((n, m))
+    return no_admisibles, inconsistentes
